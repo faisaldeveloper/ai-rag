@@ -1,15 +1,11 @@
 <?php
 
-namespace App\Models;
+namespace App\Services\RAG;
 
-use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Casts\AsVector;
-use Illuminate\Database\Eloquent\Model;
 use Laravel\Ai\Embeddings;
 use RuntimeException;
 
-#[Fillable(['title', 'body', 'embedding'])]
-class PocArticle extends Model
+class EmbeddingService
 {
     /**
      * Embed the given texts with the configured RAG provider, model, and dimensions.
@@ -19,11 +15,11 @@ class PocArticle extends Model
      *
      * @throws RuntimeException if the provider returns the wrong number of vectors or dimensions.
      */
-    public static function embed(array $texts): array
+    public function embed(array $texts): array
     {
-        $provider = config('rag.embedding_provider');
-        $model = config('rag.embedding_model');
-        $dimensions = config('rag.embedding_dimensions');
+        $provider = $this->provider();
+        $model = $this->model();
+        $dimensions = $this->dimensions();
 
         $embeddings = Embeddings::for($texts)
             ->dimensions($dimensions)
@@ -50,14 +46,26 @@ class PocArticle extends Model
     }
 
     /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
+     * Get the configured embedding provider name.
      */
-    protected function casts(): array
+    public function provider(): string
     {
-        return [
-            'embedding' => AsVector::class,
-        ];
+        return config('rag.embedding_provider');
+    }
+
+    /**
+     * Get the configured embedding model name.
+     */
+    public function model(): string
+    {
+        return config('rag.embedding_model');
+    }
+
+    /**
+     * Get the configured embedding vector dimension.
+     */
+    public function dimensions(): int
+    {
+        return config('rag.embedding_dimensions');
     }
 }

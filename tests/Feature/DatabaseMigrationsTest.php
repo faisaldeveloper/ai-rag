@@ -16,7 +16,8 @@ class DatabaseMigrationsTest extends TestCase
         $extension = DB::selectOne('select extname from pg_extension where extname = ?', ['vector']);
 
         $this->assertNotNull($extension);
-        $this->assertSame('vector', Schema::getColumnType('poc_articles', 'embedding'));
+        $this->assertSame('vector', Schema::getColumnType('document_chunks', 'embedding'));
+        $this->assertFalse(Schema::hasTable('poc_articles'));
     }
 
     public function test_pgvector_migrations_are_skipped_on_connections_other_than_postgres(): void
@@ -31,6 +32,7 @@ class DatabaseMigrationsTest extends TestCase
         $this->artisan('migrate', ['--database' => 'sqlite_guard'])->assertSuccessful();
 
         $this->assertTrue(Schema::connection('sqlite_guard')->hasTable('users'));
-        $this->assertFalse(Schema::connection('sqlite_guard')->hasTable('poc_articles'));
+        $this->assertTrue(Schema::connection('sqlite_guard')->hasTable('documents'));
+        $this->assertFalse(Schema::connection('sqlite_guard')->hasTable('document_chunks'));
     }
 }

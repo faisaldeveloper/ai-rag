@@ -6,8 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Throwaway proof of concept for vector search. Skipped on non-PostgreSQL
- * connections, which have no vector column type.
+ * Skipped on non-PostgreSQL connections, which have no vector column type.
  */
 return new class extends Migration
 {
@@ -20,12 +19,17 @@ return new class extends Migration
             return;
         }
 
-        Schema::create('poc_articles', function (Blueprint $table) {
+        Schema::create('document_chunks', function (Blueprint $table) {
             $table->id();
-            $table->string('title')->unique();
-            $table->text('body');
+            $table->foreignId('document_id')->constrained()->cascadeOnDelete();
+            $table->unsignedInteger('chunk_index');
+            $table->text('content');
             $table->vector('embedding', dimensions: config('rag.embedding_dimensions'));
+            $table->unsignedInteger('token_count')->nullable();
+            $table->jsonb('metadata')->nullable();
             $table->timestamps();
+
+            $table->unique(['document_id', 'chunk_index']);
         });
     }
 
@@ -34,6 +38,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('poc_articles');
+        Schema::dropIfExists('document_chunks');
     }
 };

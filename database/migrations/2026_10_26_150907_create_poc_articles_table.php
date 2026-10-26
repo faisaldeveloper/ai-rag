@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Throwaway proof of concept for vector search. Skipped on non-PostgreSQL
- * connections so the SQLite test suite can still migrate.
+ * connections, which have no vector column type.
  */
 return new class extends Migration
 {

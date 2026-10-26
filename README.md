@@ -7,6 +7,16 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Running tests
+
+The test suite runs against a dedicated PostgreSQL database, `knowledge_testing`, in the Docker postgres container. A fresh Docker volume creates it automatically (`database/docker-init`). For an existing volume, create it once:
+
+```bash
+docker compose exec postgres createdb -U knowledge knowledge_testing
+```
+
+Then run `composer test` (or `php artisan test`). The suite refuses to start if the configured database is not `knowledge_testing`, so it can never wipe the development database.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

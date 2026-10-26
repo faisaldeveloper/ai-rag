@@ -11,6 +11,8 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      # Init scripts only run against an empty data volume.
+      - ./database/docker-init:/docker-entrypoint-initdb.d:ro
     mem_limit: 768m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]

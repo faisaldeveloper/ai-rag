@@ -19,4 +19,18 @@ return [
 
     'embedding_dimensions' => (int) env('RAG_EMBEDDING_DIMENSIONS', 1536),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Uploaded Documents
+    |--------------------------------------------------------------------------
+    |
+    | Uploads are stored on a private disk (never publicly served) under a
+    | random filename. The size limit is in kilobytes.
+    |
+    */
+
+    'documents_disk' => env('RAG_DOCUMENTS_DISK', 'documents'),
+
+    'max_upload_kilobytes' => 5 * 1024,
+
 ];

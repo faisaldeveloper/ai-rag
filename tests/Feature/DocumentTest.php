@@ -126,22 +126,37 @@ class DocumentTest extends TestCase
         Document::factory()->create(['user_id' => $existing->user_id, 'checksum' => $existing->checksum]);
     }
 
+    public function test_different_users_cannot_upload_the_same_file(): void
+    {
+        $existing = Document::factory()->create();
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        Document::factory()->create(['checksum' => $existing->checksum]);
+    }
+
     public function test_documents_without_an_uploader_are_also_deduplicated_by_checksum(): void
     {
-        $existing = Document::factory()->withoutUser()->create();
+        $existing = Document::factory()->create();
 
         $this->expectException(UniqueConstraintViolationException::class);
 
         Document::factory()->withoutUser()->create(['checksum' => $existing->checksum]);
     }
 
-    public function test_different_users_may_upload_the_same_file(): void
+    public function test_searchable_returns_every_completed_document_regardless_of_uploader(): void
     {
-        $existing = Document::factory()->create();
+        $ownedByAdmin = Document::factory()->for(User::factory()->admin())->completed()->create();
+        $ownedByUser = Document::factory()->completed()->create();
+        $withoutUploader = Document::factory()->withoutUser()->completed()->create();
+        Document::factory()->create();
+        Document::factory()->processing()->create();
+        Document::factory()->failed()->create();
 
-        Document::factory()->create(['checksum' => $existing->checksum]);
-
-        $this->assertDatabaseCount('documents', 2);
+        $this->assertEqualsCanonicalizing(
+            [$ownedByAdmin->id, $ownedByUser->id, $withoutUploader->id],
+            Document::searchable()->pluck('id')->all(),
+        );
     }
 
     public function test_deleting_the_uploader_keeps_the_document(): void

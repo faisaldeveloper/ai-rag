@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Enums\DocumentStatus;
 use Database\Factories\DocumentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,6 +30,11 @@ class Document extends Model
 {
     /** @use HasFactory<DocumentFactory> */
     use HasFactory;
+
+    /**
+     * The validation message returned when a file that is already in the knowledge base is uploaded.
+     */
+    public const DuplicateMessage = 'This file has already been uploaded.';
 
     /**
      * The model's default values for attributes.
@@ -56,6 +63,20 @@ class Document extends Model
     public function chunks(): HasMany
     {
         return $this->hasMany(DocumentChunk::class)->orderBy('chunk_index');
+    }
+
+    /**
+     * Limit the query to documents every authenticated user may search.
+     *
+     * The knowledge base is shared, so this is every completed document. It is
+     * the single place retrieval applies authorization, inside the query.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function searchable(Builder $query): void
+    {
+        $query->where('status', DocumentStatus::Completed);
     }
 
     /**

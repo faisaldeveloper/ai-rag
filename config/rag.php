@@ -19,6 +19,22 @@ return [
 
     'embedding_dimensions' => (int) env('RAG_EMBEDDING_DIMENSIONS', 1536),
 
+    'embedding_batch_size' => (int) env('RAG_EMBEDDING_BATCH_SIZE', 32),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Chunking
+    |--------------------------------------------------------------------------
+    |
+    | Target chunk size and overlap between consecutive chunks, in estimated
+    | tokens (characters / 4, as no tokenizer is available).
+    |
+    */
+
+    'chunk_size' => (int) env('RAG_CHUNK_SIZE', 500),
+
+    'chunk_overlap' => (int) env('RAG_CHUNK_OVERLAP', 50),
+
     /*
     |--------------------------------------------------------------------------
     | Uploaded Documents

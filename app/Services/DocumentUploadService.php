@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\ProcessDocument;
 use App\Models\Document;
 use App\Models\User;
 use Illuminate\Contracts\Filesystem\Filesystem;
@@ -16,10 +17,11 @@ use Throwable;
 class DocumentUploadService
 {
     /**
-     * Store an uploaded file on the private documents disk and record it as a pending document.
+     * Store an uploaded file on the private documents disk, record it as a pending document, and queue its processing.
      *
      * The file is stored under a random name; the user-supplied name is only
      * kept as metadata. If the database insert fails the stored file is removed.
+     * The processing job is only queued once the document row is committed.
      *
      * @throws ValidationException if any user already uploaded a file with this checksum.
      */
@@ -30,13 +32,19 @@ class DocumentUploadService
         $path = $this->disk()->putFileAs('', $file, Str::uuid().'.'.$extension);
 
         try {
-            return DB::transaction(fn (): Document => $user->documents()->create([
-                'title' => $title ?: pathinfo($originalFilename, PATHINFO_FILENAME),
-                'original_filename' => $originalFilename,
-                'storage_path' => $path,
-                'mime_type' => $file->getMimeType(),
-                'checksum' => $checksum,
-            ]));
+            return DB::transaction(function () use ($user, $file, $checksum, $title, $originalFilename, $path): Document {
+                $document = $user->documents()->create([
+                    'title' => $title ?: pathinfo($originalFilename, PATHINFO_FILENAME),
+                    'original_filename' => $originalFilename,
+                    'storage_path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'checksum' => $checksum,
+                ]);
+
+                ProcessDocument::dispatch($document)->afterCommit();
+
+                return $document;
+            });
         } catch (Throwable $exception) {
             $this->disk()->delete($path);
 

@@ -6,6 +6,7 @@ use App\Enums\DocumentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreDocumentRequest;
 use App\Http\Resources\DocumentResource;
+use App\Jobs\ProcessDocument;
 use App\Models\Document;
 use App\Services\DocumentUploadService;
 use Illuminate\Http\JsonResponse;
@@ -27,7 +28,7 @@ class DocumentController extends Controller
     }
 
     /**
-     * Upload a document. It stays pending until ingestion picks it up.
+     * Upload a document and queue it for ingestion. It stays pending until a worker picks it up.
      */
     public function store(StoreDocumentRequest $request, DocumentUploadService $uploads): JsonResponse
     {
@@ -64,7 +65,7 @@ class DocumentController extends Controller
     }
 
     /**
-     * Move a failed document back to pending so it can be processed again.
+     * Move a failed document back to pending and queue it for processing again.
      */
     public function retry(Document $document): DocumentResource
     {
@@ -81,6 +82,8 @@ class DocumentController extends Controller
         } catch (LogicException) {
             abort(Response::HTTP_CONFLICT, 'The document was changed by another request. Please try again.');
         }
+
+        ProcessDocument::dispatch($document);
 
         return DocumentResource::make($document);
     }

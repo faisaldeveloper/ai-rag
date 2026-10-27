@@ -3,6 +3,9 @@
 namespace App\Providers;
 
 use App\Services\HealthCheckService;
+use App\Services\RAG\DocumentTextExtractor;
+use App\Services\RAG\PlainTextDocumentExtractor;
+use App\Services\RAG\TextChunker;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\ServiceProvider;
 
@@ -13,7 +16,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(DocumentTextExtractor::class, PlainTextDocumentExtractor::class);
+
+        $this->app->bind(TextChunker::class, fn (): TextChunker => new TextChunker(
+            config('rag.chunk_size'),
+            config('rag.chunk_overlap'),
+        ));
     }
 
     /**

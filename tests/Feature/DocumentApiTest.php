@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\DocumentStatus;
+use App\Jobs\ProcessDocument;
 use App\Models\Document;
 use App\Models\DocumentChunk;
 use App\Models\User;
@@ -67,7 +68,7 @@ class DocumentApiTest extends TestCase
         $this->withToken('1|not-a-real-token')->getJson('/api/documents')->assertUnauthorized();
     }
 
-    public function test_admin_uploads_a_text_file_as_a_pending_document_on_the_private_disk(): void
+    public function test_admin_uploads_a_text_file_as_a_pending_document_on_the_private_disk_and_queues_processing(): void
     {
         $admin = User::factory()->admin()->create();
         Sanctum::actingAs($admin);
@@ -91,7 +92,7 @@ class DocumentApiTest extends TestCase
         $this->assertMatchesRegularExpression('/^[0-9a-f-]{36}\.txt$/', $document->storage_path);
         Storage::disk('documents')->assertExists($document->storage_path);
         $this->assertSame($contents, Storage::disk('documents')->get($document->storage_path));
-        Queue::assertNothingPushed();
+        Queue::assertPushed(ProcessDocument::class, fn (ProcessDocument $job): bool => $job->document->is($document) && $job->afterCommit === true);
     }
 
     public function test_admin_uploads_markdown_containing_code_with_a_custom_title(): void
@@ -143,6 +144,7 @@ class DocumentApiTest extends TestCase
 
         $this->assertDatabaseEmpty('documents');
         $this->assertEmpty(Storage::disk('documents')->allFiles());
+        Queue::assertNothingPushed();
     }
 
     public function test_upload_rejects_files_over_5_mb(): void
@@ -176,6 +178,7 @@ class DocumentApiTest extends TestCase
 
         $this->assertDatabaseCount('documents', 1);
         $this->assertCount(1, Storage::disk('documents')->allFiles());
+        Queue::assertPushed(ProcessDocument::class, 1);
     }
 
     public function test_uploading_content_another_admin_already_uploaded_is_rejected(): void
@@ -200,6 +203,7 @@ class DocumentApiTest extends TestCase
 
         $this->assertDatabaseEmpty('documents');
         $this->assertEmpty(Storage::disk('documents')->allFiles());
+        Queue::assertNothingPushed();
     }
 
     public function test_non_admins_receive_403_on_every_document_route_even_for_their_own_documents(): void
@@ -289,7 +293,7 @@ class DocumentApiTest extends TestCase
         Storage::disk('documents')->assertExists('theirs.txt');
     }
 
-    public function test_admin_retrying_another_admins_failed_document_moves_it_to_pending(): void
+    public function test_admin_retrying_another_admins_failed_document_moves_it_to_pending_and_queues_processing(): void
     {
         $document = Document::factory()->for(User::factory()->admin())->failed()->create();
         Sanctum::actingAs(User::factory()->admin()->create());
@@ -300,7 +304,7 @@ class DocumentApiTest extends TestCase
             ->assertJsonPath('data.error', null);
 
         $this->assertDatabaseHas('documents', ['id' => $document->id, 'status' => 'pending', 'error_message' => null]);
-        Queue::assertNothingPushed();
+        Queue::assertPushed(ProcessDocument::class, fn (ProcessDocument $job): bool => $job->document->is($document));
     }
 
     /**
@@ -327,6 +331,7 @@ class DocumentApiTest extends TestCase
             ->assertJson(['message' => 'Only failed documents can be retried.']);
 
         $this->assertSame($status, $document->fresh()->status);
+        Queue::assertNothingPushed();
     }
 
     /**

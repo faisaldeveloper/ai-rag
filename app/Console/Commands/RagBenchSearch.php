@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\EmbeddingTaskType;
 use App\Models\User;
 use App\Services\RAG\EmbeddingService;
 use App\Services\RAG\Retriever;
@@ -49,7 +50,7 @@ class RagBenchSearch extends Command
 
         foreach ($queries as $index => $query) {
             $started = hrtime(true);
-            $vector = $embeddings->embed([$query])[0];
+            $vector = $embeddings->embed([$query], EmbeddingTaskType::RetrievalQuery)[0];
             $embedded = hrtime(true);
             $chunks = $retriever->searchByVector($user, $vector, $limit);
             $finished = hrtime(true);

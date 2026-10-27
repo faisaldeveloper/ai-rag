@@ -61,6 +61,7 @@ class DocumentFactory extends Factory
             'status' => DocumentStatus::Completed,
             'embedding_provider' => config('rag.embedding_provider'),
             'embedding_model' => config('rag.embedding_model'),
+            'embedding_task_types' => false,
         ]);
     }
 

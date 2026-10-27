@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Document;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -34,5 +35,18 @@ class DatabaseMigrationsTest extends TestCase
         $this->assertTrue(Schema::connection('sqlite_guard')->hasTable('users'));
         $this->assertTrue(Schema::connection('sqlite_guard')->hasTable('documents'));
         $this->assertFalse(Schema::connection('sqlite_guard')->hasTable('document_chunks'));
+    }
+
+    public function test_documents_embedded_before_task_types_are_marked_as_embedded_without_them(): void
+    {
+        $migration = require database_path('migrations/2026_10_27_145209_add_embedding_task_types_to_documents_table.php');
+        $migration->down();
+        $embedded = Document::factory()->create(['embedding_provider' => 'gemini', 'embedding_model' => 'old-model']);
+        $notEmbedded = Document::factory()->create();
+
+        $migration->up();
+
+        $this->assertFalse($embedded->fresh()->embedding_task_types);
+        $this->assertNull($notEmbedded->fresh()->embedding_task_types);
     }
 }

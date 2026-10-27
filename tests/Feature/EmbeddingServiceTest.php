@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\EmbeddingTaskType;
 use App\Services\RAG\EmbeddingException;
 use App\Services\RAG\EmbeddingService;
 use Laravel\Ai\Embeddings;
@@ -19,6 +20,7 @@ class EmbeddingServiceTest extends TestCase
             'rag.embedding_model' => 'test-embedding-model',
             'rag.embedding_dimensions' => 8,
             'rag.embedding_batch_size' => 32,
+            'rag.embedding_task_types' => true,
         ]);
     }
 
@@ -103,5 +105,75 @@ class EmbeddingServiceTest extends TestCase
         $this->assertSame([], app(EmbeddingService::class)->embed([]));
 
         Embeddings::assertNothingGenerated();
+    }
+
+    public function test_it_sends_the_task_type_to_gemini_when_task_types_are_enabled(): void
+    {
+        Embeddings::fake();
+
+        app(EmbeddingService::class)->embed(['first'], EmbeddingTaskType::RetrievalDocument);
+        app(EmbeddingService::class)->embed(['question'], EmbeddingTaskType::RetrievalQuery);
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['first']
+            && $prompt->providerOptions === ['taskType' => 'RETRIEVAL_DOCUMENT']);
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['question']
+            && $prompt->providerOptions === ['taskType' => 'RETRIEVAL_QUERY']);
+        $this->assertTrue(app(EmbeddingService::class)->usesTaskTypes());
+    }
+
+    public function test_it_sends_the_task_type_with_every_batch(): void
+    {
+        config(['rag.embedding_batch_size' => 1]);
+        Embeddings::fake();
+
+        app(EmbeddingService::class)->embed(['first', 'second'], EmbeddingTaskType::RetrievalDocument);
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['first'] && $prompt->providerOptions === ['taskType' => 'RETRIEVAL_DOCUMENT']);
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['second'] && $prompt->providerOptions === ['taskType' => 'RETRIEVAL_DOCUMENT']);
+    }
+
+    public function test_it_sends_no_task_type_when_task_types_are_disabled(): void
+    {
+        config(['rag.embedding_task_types' => false]);
+        Embeddings::fake();
+
+        app(EmbeddingService::class)->embed(['first'], EmbeddingTaskType::RetrievalDocument);
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->providerOptions === []);
+        $this->assertFalse(app(EmbeddingService::class)->usesTaskTypes());
+    }
+
+    public function test_it_sends_no_task_type_to_providers_other_than_gemini(): void
+    {
+        config(['rag.embedding_provider' => 'openai']);
+        Embeddings::fake();
+
+        app(EmbeddingService::class)->embed(['first'], EmbeddingTaskType::RetrievalDocument);
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->provider->name() === 'openai'
+            && $prompt->providerOptions === []);
+        $this->assertFalse(app(EmbeddingService::class)->usesTaskTypes());
+    }
+
+    public function test_a_renamed_gemini_provider_still_gets_task_types(): void
+    {
+        config([
+            'ai.providers.google' => ['driver' => 'gemini', 'key' => 'test-key'],
+            'rag.embedding_provider' => 'google',
+        ]);
+        Embeddings::fake();
+
+        app(EmbeddingService::class)->embed(['first'], EmbeddingTaskType::RetrievalQuery);
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->providerOptions === ['taskType' => 'RETRIEVAL_QUERY']);
+    }
+
+    public function test_it_sends_no_task_type_when_none_is_given(): void
+    {
+        Embeddings::fake();
+
+        app(EmbeddingService::class)->embed(['first']);
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->providerOptions === []);
     }
 }

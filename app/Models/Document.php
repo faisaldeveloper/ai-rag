@@ -25,6 +25,7 @@ use LogicException;
     'checksum',
     'embedding_provider',
     'embedding_model',
+    'embedding_task_types',
 ])]
 class Document extends Model
 {
@@ -127,6 +128,7 @@ class Document extends Model
     {
         return [
             'status' => DocumentStatus::class,
+            'embedding_task_types' => 'boolean',
         ];
     }
 }

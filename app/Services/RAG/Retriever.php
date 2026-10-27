@@ -2,6 +2,7 @@
 
 namespace App\Services\RAG;
 
+use App\Enums\EmbeddingTaskType;
 use App\Models\Document;
 use App\Models\DocumentChunk;
 use App\Models\User;
@@ -43,7 +44,7 @@ class Retriever
             return new Collection;
         }
 
-        return $this->searchByVector($user, $this->embeddings->embed([$query])[0], $limit, $minScore);
+        return $this->searchByVector($user, $this->embeddings->embed([$query], EmbeddingTaskType::RetrievalQuery)[0], $limit, $minScore);
     }
 
     /**

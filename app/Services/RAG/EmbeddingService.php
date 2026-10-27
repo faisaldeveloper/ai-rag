@@ -2,7 +2,12 @@
 
 namespace App\Services\RAG;
 
+use App\Enums\EmbeddingTaskType;
+use Illuminate\Http\Client\RequestException;
 use Laravel\Ai\Embeddings;
+use Laravel\Ai\Exceptions\RateLimitedException;
+use Laravel\Ai\PendingResponses\PendingEmbeddingsGeneration;
+use Throwable;
 
 class EmbeddingService
 {
@@ -10,19 +15,20 @@ class EmbeddingService
      * Embed the given texts with the configured RAG provider, model, and dimensions.
      *
      * Texts are sent to the provider in batches of the configured batch size;
-     * the returned vectors are in the same order as the texts.
+     * the returned vectors are in the same order as the texts. The task type
+     * is only sent when usesTaskTypes() is true.
      *
      * @param  list<string>  $texts
      * @return list<array<int, float>>
      *
      * @throws EmbeddingException if the provider returns the wrong number of vectors or dimensions.
      */
-    public function embed(array $texts): array
+    public function embed(array $texts, ?EmbeddingTaskType $taskType = null): array
     {
         $embeddings = [];
 
         foreach (array_chunk($texts, $this->batchSize()) as $batch) {
-            array_push($embeddings, ...$this->embedBatch($batch, count($embeddings)));
+            array_push($embeddings, ...$this->embedBatch($batch, count($embeddings), $taskType));
         }
 
         return $embeddings;
@@ -37,7 +43,7 @@ class EmbeddingService
      *
      * @throws EmbeddingException if the provider returns the wrong number of vectors or dimensions.
      */
-    private function embedBatch(array $texts, int $offset): array
+    private function embedBatch(array $texts, int $offset, ?EmbeddingTaskType $taskType): array
     {
         $provider = $this->provider();
         $model = $this->model();
@@ -45,6 +51,10 @@ class EmbeddingService
 
         $embeddings = Embeddings::for($texts)
             ->dimensions($dimensions)
+            ->when(
+                $taskType !== null && $this->usesTaskTypes(),
+                fn (PendingEmbeddingsGeneration $pending) => $pending->withProviderOptions(['taskType' => $taskType->value]),
+            )
             ->generate($provider, $model)
             ->embeddings;
 
@@ -89,6 +99,26 @@ class EmbeddingService
     public function dimensions(): int
     {
         return config('rag.embedding_dimensions');
+    }
+
+    /**
+     * Determine whether embed() sends task types: they are enabled and the provider is Gemini.
+     *
+     * The provider is identified by its driver, so a renamed Gemini provider still counts.
+     */
+    public function usesTaskTypes(): bool
+    {
+        return (bool) config('rag.embedding_task_types')
+            && config('ai.providers.'.$this->provider().'.driver') === 'gemini';
+    }
+
+    /**
+     * Determine whether the exception means the embedding provider is rate limiting the application.
+     */
+    public static function isRateLimit(?Throwable $exception): bool
+    {
+        return $exception instanceof RateLimitedException
+            || ($exception instanceof RequestException && $exception->response?->status() === 429);
     }
 
     /**

@@ -29,6 +29,7 @@ class DocumentIngestionServiceTest extends TestCase
             'rag.chunk_size' => 20,
             'rag.chunk_overlap' => 5,
             'rag.embedding_batch_size' => 2,
+            'rag.embedding_task_types' => true,
         ]);
     }
 
@@ -105,6 +106,68 @@ class DocumentIngestionServiceTest extends TestCase
 
         Embeddings::assertNothingGenerated();
         $this->assertDatabaseEmpty('document_chunks');
+    }
+
+    public function test_chunks_are_embedded_as_retrieval_documents_and_the_document_records_task_types(): void
+    {
+        Embeddings::fake();
+        $document = $this->storedDocument('Some text.');
+
+        app(DocumentIngestionService::class)->ingest($document);
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->providerOptions === ['taskType' => 'RETRIEVAL_DOCUMENT']);
+        $this->assertTrue($document->fresh()->embedding_task_types);
+    }
+
+    public function test_the_document_records_that_task_types_were_not_used_when_they_are_disabled(): void
+    {
+        config(['rag.embedding_task_types' => false]);
+        Embeddings::fake();
+        $document = $this->storedDocument('Some text.');
+
+        app(DocumentIngestionService::class)->ingest($document);
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->providerOptions === []);
+        $this->assertFalse($document->fresh()->embedding_task_types);
+    }
+
+    public function test_chunks_are_not_replaced_if_the_document_status_changed_while_embedding(): void
+    {
+        $document = $this->storedDocument('Some text.');
+        $existing = DocumentChunk::factory()->for($document)->create(['chunk_index' => 0]);
+        Embeddings::fake(function (EmbeddingsPrompt $prompt) use ($document): array {
+            Document::query()->whereKey($document->id)->update(['status' => DocumentStatus::Failed]);
+
+            return array_map(fn (): array => Embeddings::fakeEmbedding(config('rag.embedding_dimensions')), $prompt->inputs);
+        });
+
+        try {
+            app(DocumentIngestionService::class)->ingest($document);
+            $this->fail('Expected an IngestionException.');
+        } catch (IngestionException $exception) {
+            $this->assertSame('The document was changed by another process while it was being embedded.', $exception->getMessage());
+        }
+
+        $this->assertSame([$existing->id], $document->chunks()->pluck('id')->all());
+        $this->assertNull($document->fresh()->embedding_model);
+    }
+
+    public function test_no_chunks_are_stored_if_the_document_was_deleted_while_embedding(): void
+    {
+        $document = $this->storedDocument('Some text.');
+        Embeddings::fake(function (EmbeddingsPrompt $prompt) use ($document): array {
+            Document::query()->whereKey($document->id)->delete();
+
+            return array_map(fn (): array => Embeddings::fakeEmbedding(config('rag.embedding_dimensions')), $prompt->inputs);
+        });
+
+        $this->expectException(IngestionException::class);
+
+        try {
+            app(DocumentIngestionService::class)->ingest($document);
+        } finally {
+            $this->assertDatabaseEmpty('document_chunks');
+        }
     }
 
     /**

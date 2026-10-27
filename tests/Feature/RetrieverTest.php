@@ -28,6 +28,7 @@ class RetrieverTest extends TestCase
             'rag.embedding_model' => 'test-embedding-model',
             'rag.top_k' => 5,
             'rag.min_score' => 0.0,
+            'rag.embedding_task_types' => true,
         ]);
 
         $this->user = User::factory()->create();
@@ -82,6 +83,13 @@ class RetrieverTest extends TestCase
             && $prompt->model === 'test-embedding-model'
             && $prompt->provider->name() === 'gemini'
             && $prompt->dimensions === config('rag.embedding_dimensions'));
+    }
+
+    public function test_the_query_is_embedded_as_a_retrieval_query(): void
+    {
+        app(Retriever::class)->search($this->user, 'How do refunds work?');
+
+        Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->providerOptions === ['taskType' => 'RETRIEVAL_QUERY']);
     }
 
     public function test_the_limit_defaults_to_top_k_and_is_respected(): void

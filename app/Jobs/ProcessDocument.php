@@ -6,14 +6,13 @@ use App\Enums\DocumentStatus;
 use App\Models\Document;
 use App\Services\RAG\DocumentIngestionService;
 use App\Services\RAG\EmbeddingException;
+use App\Services\RAG\EmbeddingService;
 use App\Services\RAG\IngestionException;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Queue\MaxAttemptsExceededException;
 use Laravel\Ai\Exceptions\AiException;
-use Laravel\Ai\Exceptions\RateLimitedException;
 use LogicException;
 use Throwable;
 
@@ -115,7 +114,7 @@ class ProcessDocument implements ShouldBeUnique, ShouldQueue
         try {
             $ingestion->ingest($this->document);
         } catch (Throwable $exception) {
-            if (! self::isRateLimit($exception) || $this->attempts() >= $this->tries) {
+            if (! EmbeddingService::isRateLimit($exception) || $this->attempts() >= $this->tries) {
                 throw $exception;
             }
 
@@ -166,7 +165,7 @@ class ProcessDocument implements ShouldBeUnique, ShouldQueue
     {
         return match (true) {
             $exception instanceof IngestionException => $exception->getMessage(),
-            self::isRateLimit($exception) => 'The embedding provider rate limit was reached. Retry the document later.',
+            EmbeddingService::isRateLimit($exception) => 'The embedding provider rate limit was reached. Retry the document later.',
             $exception instanceof EmbeddingException => 'The embedding provider returned an unexpected response.',
             $exception instanceof AiException => 'The embedding provider request failed. Retry the document later.',
             $exception instanceof MaxAttemptsExceededException => 'Processing took too long or was interrupted too many times.',
@@ -196,14 +195,5 @@ class ProcessDocument implements ShouldBeUnique, ShouldQueue
         }
 
         return true;
-    }
-
-    /**
-     * Determine whether the exception means the embedding provider is rate limiting the application.
-     */
-    private static function isRateLimit(?Throwable $exception): bool
-    {
-        return $exception instanceof RateLimitedException
-            || ($exception instanceof RequestException && $exception->response?->status() === 429);
     }
 }

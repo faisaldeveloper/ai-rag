@@ -22,6 +22,15 @@ return [
     'embedding_batch_size' => (int) env('RAG_EMBEDDING_BATCH_SIZE', 32),
 
     /*
+    | Whether to send a task type (RETRIEVAL_DOCUMENT for chunks, RETRIEVAL_QUERY
+    | for questions) to providers that support it, currently only Gemini. Each
+    | document records whether its vectors used task types; after changing
+    | this, re-embed the documents with rag:reembed --all.
+    */
+
+    'embedding_task_types' => (bool) env('RAG_EMBEDDING_TASK_TYPES', true),
+
+    /*
     |--------------------------------------------------------------------------
     | Chunking
     |--------------------------------------------------------------------------

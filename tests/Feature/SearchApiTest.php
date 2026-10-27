@@ -5,15 +5,24 @@ namespace Tests\Feature;
 use App\Models\Document;
 use App\Models\DocumentChunk;
 use App\Models\User;
+use App\Services\RAG\EmbeddingException;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Ai\Embeddings;
+use Laravel\Ai\Exceptions\AiException;
+use Laravel\Ai\Exceptions\ProviderOverloadedException;
+use Laravel\Ai\Exceptions\RateLimitedException;
 use Laravel\Ai\Prompts\EmbeddingsPrompt;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
+use Throwable;
 
 class SearchApiTest extends TestCase
 {
@@ -184,6 +193,83 @@ class SearchApiTest extends TestCase
 
         Sanctum::actingAs(User::factory()->create());
         $this->postJson('/api/search', ['query' => 'refunds'])->assertOk();
+    }
+
+    /**
+     * @return array<string, array{Throwable}>
+     */
+    public static function providerFailures(): array
+    {
+        return [
+            'SDK error' => [new AiException('Provider error: SECRET-PROVIDER-DETAIL')],
+            'provider overloaded' => [ProviderOverloadedException::forProvider('gemini')],
+            'unexpected vectors' => [new EmbeddingException('Expected 1 embeddings but received 0 (provider SECRET-PROVIDER-DETAIL).')],
+            'raw HTTP error' => [new RequestException(new Response(new Psr7Response(500, [], '{"error":"SECRET-PROVIDER-DETAIL"}')))],
+            'connection error' => [new ConnectionException('cURL error: SECRET-PROVIDER-DETAIL')],
+        ];
+    }
+
+    #[DataProvider('providerFailures')]
+    public function test_a_provider_failure_returns_a_generic_503_without_retry_after(Throwable $failure): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        Embeddings::fake(fn () => throw $failure);
+
+        $response = $this->postJson('/api/search', ['query' => 'refunds']);
+
+        $response->assertServiceUnavailable()
+            ->assertExactJson(['message' => 'Search is temporarily unavailable. Please try again later.'])
+            ->assertHeaderMissing('Retry-After');
+        $this->assertStringNotContainsString('SECRET-PROVIDER-DETAIL', $response->getContent());
+    }
+
+    public function test_a_provider_rate_limit_returns_503_with_the_default_retry_after(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        Embeddings::fake(fn () => throw RateLimitedException::forProvider('gemini', 429));
+
+        $response = $this->postJson('/api/search', ['query' => 'refunds']);
+
+        $response->assertServiceUnavailable()
+            ->assertExactJson(['message' => 'Search is temporarily unavailable. Please try again later.'])
+            ->assertHeader('Retry-After', '30');
+        $this->assertStringNotContainsString('gemini', $response->getContent());
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function providerRetryAfterHeaders(): array
+    {
+        return [
+            'provider delay' => ['45', '45'],
+            'delay above the cap' => ['86400', '300'],
+            'zero' => ['0', '1'],
+            'HTTP date' => ['Wed, 21 Oct 2026 07:28:00 GMT', '30'],
+        ];
+    }
+
+    #[DataProvider('providerRetryAfterHeaders')]
+    public function test_the_providers_retry_after_is_passed_on_within_limits(string $providerRetryAfter, string $expected): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $providerResponse = new RequestException(new Response(new Psr7Response(429, ['Retry-After' => $providerRetryAfter], '{"error":"SECRET-PROVIDER-DETAIL"}')));
+        Embeddings::fake(fn () => throw RateLimitedException::forProvider('gemini', 429, $providerResponse));
+
+        $response = $this->postJson('/api/search', ['query' => 'refunds']);
+
+        $response->assertServiceUnavailable()->assertHeader('Retry-After', $expected);
+        $this->assertStringNotContainsString('SECRET-PROVIDER-DETAIL', $response->getContent());
+    }
+
+    public function test_a_raw_429_from_the_provider_is_treated_as_a_rate_limit(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        Embeddings::fake(fn () => throw new RequestException(new Response(new Psr7Response(429, ['Retry-After' => '12']))));
+
+        $this->postJson('/api/search', ['query' => 'refunds'])
+            ->assertServiceUnavailable()
+            ->assertHeader('Retry-After', '12');
     }
 
     /**

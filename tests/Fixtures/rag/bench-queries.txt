@@ -1,0 +1,12 @@
+# Sample queries for `php artisan rag:bench-search`, one per line.
+# Blank lines and lines starting with # are skipped. Edit freely.
+How do I request a refund?
+What is the deadline for submitting expense reports?
+How many vacation days do new employees get?
+Who should I contact about a security incident?
+How do I reset my password?
+What are the office opening hours?
+Can I work remotely, and how do I request it?
+What is the process for onboarding a new team member?
+How are customer support tickets prioritised?
+Where can I find the travel reimbursement policy?

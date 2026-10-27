@@ -37,6 +37,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Retrieval
+    |--------------------------------------------------------------------------
+    |
+    | How many chunks a search returns by default, and the minimum cosine
+    | similarity (0 to 1) a chunk needs to be returned. The minimum score
+    | is uncalibrated for now, so it lets every non-opposed chunk through.
+    | The rate limit is the number of searches per user per minute.
+    |
+    */
+
+    'top_k' => (int) env('RAG_TOP_K', 5),
+
+    'min_score' => (float) env('RAG_MIN_SCORE', 0.0),
+
+    'search_rate_limit' => (int) env('RAG_SEARCH_RATE_LIMIT', 30),
+
+    /*
+    |--------------------------------------------------------------------------
     | Uploaded Documents
     |--------------------------------------------------------------------------
     |

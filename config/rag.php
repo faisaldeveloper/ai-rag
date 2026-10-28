@@ -64,6 +64,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Answer Generation
+    |--------------------------------------------------------------------------
+    |
+    | The provider (a key in config/ai.php) and model that answer questions
+    | from the retrieved chunks, the request timeout in seconds, and the
+    | sampling temperature. Leave RAG_LLM_TEMPERATURE empty for models
+    | that reject a temperature. The chat rate limit is the number of
+    | questions per user per minute.
+    |
+    */
+
+    'llm_provider' => env('RAG_LLM_PROVIDER', 'gemini'),
+
+    'llm_model' => env('RAG_LLM_MODEL', 'gemini-3.5-flash-lite'),
+
+    'llm_timeout' => (int) env('RAG_LLM_TIMEOUT', 30),
+
+    'llm_temperature' => is_numeric(env('RAG_LLM_TEMPERATURE', 0.1)) ? (float) env('RAG_LLM_TEMPERATURE', 0.1) : null,
+
+    'chat_rate_limit' => (int) env('RAG_CHAT_RATE_LIMIT', 10),
+
+    /*
+    |--------------------------------------------------------------------------
     | Uploaded Documents
     |--------------------------------------------------------------------------
     |

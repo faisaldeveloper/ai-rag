@@ -15,6 +15,7 @@ final readonly class RetrievedChunk
      *
      * @param  string|null  $heading  Trail of the Markdown headings the chunk sits under, e.g. "Guide > Install".
      * @param  float  $score  Cosine similarity to the query, from 0 (unrelated) to 1 (same direction).
+     * @param  int|null  $page  Page the chunk starts on, for formats that have pages.
      */
     public function __construct(
         public int $documentId,
@@ -24,5 +25,6 @@ final readonly class RetrievedChunk
         public ?string $heading,
         public string $content,
         public float $score,
+        public ?int $page = null,
     ) {}
 }

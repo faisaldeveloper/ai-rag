@@ -36,5 +36,8 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute((int) config('rag.search_rate_limit'))
             ->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
+
+        RateLimiter::for('chat', fn (Request $request): Limit => Limit::perMinute((int) config('rag.chat_rate_limit'))
+            ->by($request->user()?->getAuthIdentifier() ?: $request->ip()));
     }
 }

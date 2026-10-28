@@ -20,6 +20,13 @@ class Message extends Model
     public const UPDATED_AT = null;
 
     /**
+     * Adding a message marks its conversation as recently active.
+     *
+     * @var list<string>
+     */
+    protected $touches = ['conversation'];
+
+    /**
      * Get the conversation the message belongs to.
      *
      * @return BelongsTo<Conversation, $this>

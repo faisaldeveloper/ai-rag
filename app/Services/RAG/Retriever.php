@@ -92,6 +92,7 @@ class Retriever
                 heading: $chunk->metadata['heading'] ?? null,
                 content: $chunk->content,
                 score: max(0.0, min(1.0, 1 - (float) $chunk->distance)),
+                page: isset($chunk->metadata['page']) ? (int) $chunk->metadata['page'] : null,
             ))
             ->toBase();
     }

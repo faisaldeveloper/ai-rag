@@ -190,6 +190,13 @@ Architecture rules:
 - Jobs must be idempotent (safe to retry). Documents become completed only if every step succeeded.
 - Never log API keys or full document contents.
 
+Error logging and production:
+- Logs and failed_jobs must never contain content (questions, chunks, document text,
+  SQL bindings, provider responses, keys). Log only class, SQLSTATE/status, ids, request id
+  (see ProviderFailureLog, DatabaseFailureLog, ReplacesUnexpectedFailures).
+- Production must set APP_DEBUG=false and zend.exception_ignore_args=On in php.ini,
+  so error pages and stack traces never show messages or function arguments.
+
 Commands: docker compose up -d | composer dev | php artisan test | ./vendor/bin/pint
 
 Working rules:

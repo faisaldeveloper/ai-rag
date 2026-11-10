@@ -72,6 +72,22 @@ class ConversationApiTest extends TestCase
         $this->assertStringNotContainsString('latency_ms', $response->getContent());
     }
 
+    public function test_messages_say_whether_they_are_the_fallback_answer(): void
+    {
+        $user = User::factory()->create();
+        $conversation = Conversation::factory()->for($user)->create();
+        Message::factory()->for($conversation)->create();
+        Message::factory()->assistant()->for($conversation)->create(['metadata' => ['fallback' => true, 'citations' => []]]);
+        Message::factory()->assistant()->for($conversation)->create(['metadata' => ['fallback' => false, 'citations' => []]]);
+        Sanctum::actingAs($user);
+
+        $this->getJson("/api/conversations/{$conversation->id}")
+            ->assertOk()
+            ->assertJsonPath('data.messages.0.fallback', false)
+            ->assertJsonPath('data.messages.1.fallback', true)
+            ->assertJsonPath('data.messages.2.fallback', false);
+    }
+
     public function test_another_users_conversation_is_not_found_even_for_an_admin(): void
     {
         $conversation = Conversation::factory()->create();

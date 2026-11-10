@@ -58,7 +58,7 @@ return [
 
     'top_k' => (int) env('RAG_TOP_K', 5),
 
-    'min_score' => (float) env('RAG_MIN_SCORE', 0.0),
+    'min_score' => (float) env('RAG_MIN_SCORE', 0.68),
 
     'search_rate_limit' => (int) env('RAG_SEARCH_RATE_LIMIT', 30),
 

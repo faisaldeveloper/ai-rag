@@ -2,8 +2,10 @@
 
 use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Services\DatabaseFailureLog;
 use App\Services\RAG\EmbeddingException;
 use App\Services\RAG\ProviderFailureLog;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -38,6 +40,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->report(function (AiException|EmbeddingException|HttpClientException $exception): void {
             Log::error('Embedding provider request failed.', ProviderFailureLog::context($exception));
+        })->stop();
+
+        // A QueryException's message holds the SQL with its bindings (question text, chunk content), so only safe details are logged.
+        $exceptions->report(function (QueryException|PDOException $exception): void {
+            Log::error('Database query failed.', DatabaseFailureLog::context($exception));
         })->stop();
 
         $exceptions->shouldRenderJsonWhen(

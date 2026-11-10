@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Enums\DocumentStatus;
+use App\Jobs\Concerns\ReplacesUnexpectedFailures;
 use App\Models\Document;
 use App\Services\RAG\DocumentIngestionService;
 use App\Services\RAG\EmbeddingException;
@@ -33,6 +34,7 @@ use Throwable;
 class ProcessDocument implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
+    use ReplacesUnexpectedFailures;
 
     /**
      * The delay before retrying the first rate-limited attempt, doubled for each later attempt.
@@ -104,26 +106,31 @@ class ProcessDocument implements ShouldBeUnique, ShouldQueue
 
     /**
      * Execute the job.
+     *
+     * Unexpected exceptions are replaced so their content never reaches the
+     * worker or failed_jobs; retries and backoff count them as before.
      */
     public function handle(DocumentIngestionService $ingestion): void
     {
-        if (! $this->claim()) {
-            return;
-        }
-
-        try {
-            $ingestion->ingest($this->document);
-        } catch (Throwable $exception) {
-            if (! EmbeddingService::isRateLimit($exception) || $this->attempts() >= $this->tries) {
-                throw $exception;
+        $this->runReplacingUnexpectedFailures(function () use ($ingestion): void {
+            if (! $this->claim()) {
+                return;
             }
 
-            $this->release(self::rateLimitDelay($this->attempts()));
+            try {
+                $ingestion->ingest($this->document);
+            } catch (Throwable $exception) {
+                if (! EmbeddingService::isRateLimit($exception) || $this->attempts() >= $this->tries) {
+                    throw $exception;
+                }
 
-            return;
-        }
+                $this->release(self::rateLimitDelay($this->attempts()));
 
-        $this->document->transitionTo(DocumentStatus::Completed);
+                return;
+            }
+
+            $this->document->transitionTo(DocumentStatus::Completed);
+        });
     }
 
     /**

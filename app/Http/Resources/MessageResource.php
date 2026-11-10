@@ -8,7 +8,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * The retrieval metadata (scores, provider, model, latency) stays internal:
- * only the citations of an assistant message are exposed.
+ * only the citations of an assistant message, and whether it is the fallback
+ * answer, are exposed.
  *
  * @mixin Message
  */
@@ -17,7 +18,7 @@ class MessageResource extends JsonResource
     /**
      * Transform the resource into an array.
      *
-     * @return array{id: int, role: string, content: string, citations: list<array<string, mixed>>, created_at: mixed}
+     * @return array{id: int, role: string, content: string, fallback: bool, citations: list<array<string, mixed>>, created_at: mixed}
      */
     public function toArray(Request $request): array
     {
@@ -25,6 +26,7 @@ class MessageResource extends JsonResource
             'id' => $this->id,
             'role' => $this->role,
             'content' => $this->content,
+            'fallback' => (bool) ($this->metadata['fallback'] ?? false),
             'citations' => array_map($this->citation(...), $this->metadata['citations'] ?? []),
             'created_at' => $this->created_at,
         ];

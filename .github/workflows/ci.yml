@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    services:
+      # Matches .env.example (host, port, user, password) and phpunit.xml (database).
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: knowledge_testing
+          POSTGRES_USER: knowledge
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U knowledge -d knowledge_testing"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql, pgsql
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      # No secrets: APP_KEY is generated per run and every AI provider is faked in tests.
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Check code style
+        run: ./vendor/bin/pint --test
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # Built before the PHP tests: pages render @vite, which needs the manifest.
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Run PHP tests
+        run: php artisan test

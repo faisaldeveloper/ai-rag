@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AssignRequestId;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Services\RAG\EmbeddingException;
 use App\Services\RAG\ProviderFailureLog;
 use Illuminate\Foundation\Application;
@@ -21,9 +22,18 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(AssignRequestId::class);
 
+        $middleware->web(append: [
+            HandleInertiaRequests::class,
+        ]);
+
+        // The frontend calls the JSON API with its session cookie; token clients are unaffected.
+        $middleware->statefulApi();
+
         $middleware->redirectGuestsTo(
             fn (Request $request) => $request->is('api/*') ? null : route('login'),
         );
+
+        $middleware->redirectUsersTo(fn () => route('chat.index'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->report(function (AiException|EmbeddingException|HttpClientException $exception): void {

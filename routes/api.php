@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\MessageSourceController;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\HealthController;
 use Illuminate\Support\Facades\Route;
@@ -15,4 +16,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('search', SearchController::class)->middleware('throttle:search')->name('search');
     Route::post('chat', ChatController::class)->middleware('throttle:chat')->name('chat');
     Route::apiResource('conversations', ConversationController::class)->only(['index', 'show']);
+    Route::get('conversations/{conversation}/messages/{message}/sources/{label}', MessageSourceController::class)
+        ->where('label', 'S[0-9]+')
+        ->scopeBindings()
+        ->name('messages.sources.show');
 });

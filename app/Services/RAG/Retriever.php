@@ -6,6 +6,7 @@ use App\Enums\EmbeddingTaskType;
 use App\Models\Document;
 use App\Models\DocumentChunk;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Laravel\Ai\Exceptions\AiException;
 
@@ -63,22 +64,7 @@ class Retriever
         $limit = max(1, min(self::MaxLimit, $limit ?? (int) config('rag.top_k', 5)));
         $minScore = max(0.0, min(1.0, $minScore ?? (float) config('rag.min_score', 0.0)));
 
-        return DocumentChunk::query()
-            ->joinSub(
-                Document::query()->searchable()->select(['id', 'title']),
-                'searchable_documents',
-                'searchable_documents.id',
-                '=',
-                'document_chunks.document_id',
-            )
-            ->select([
-                'document_chunks.id',
-                'document_chunks.document_id',
-                'document_chunks.chunk_index',
-                'document_chunks.content',
-                'document_chunks.metadata',
-                'searchable_documents.title as document_title',
-            ])
+        return $this->chunksVisibleTo($user)
             ->selectVectorDistance('document_chunks.embedding', $vector, 'distance')
             ->whereVectorSimilarTo('document_chunks.embedding', $vector, $minScore)
             ->orderBy('document_chunks.id')
@@ -95,5 +81,34 @@ class Retriever
                 page: isset($chunk->metadata['page']) ? (int) $chunk->metadata['page'] : null,
             ))
             ->toBase();
+    }
+
+    /**
+     * Start a query for the chunks the user may read, with their document's title as document_title.
+     *
+     * This is the one place chunk authorization lives: search and the citation
+     * sources endpoint both build on it, so a chunk of a document the user may
+     * not search is never loaded by either.
+     *
+     * @return Builder<DocumentChunk>
+     */
+    public function chunksVisibleTo(User $user): Builder
+    {
+        return DocumentChunk::query()
+            ->joinSub(
+                Document::query()->searchable()->select(['id', 'title']),
+                'searchable_documents',
+                'searchable_documents.id',
+                '=',
+                'document_chunks.document_id',
+            )
+            ->select([
+                'document_chunks.id',
+                'document_chunks.document_id',
+                'document_chunks.chunk_index',
+                'document_chunks.content',
+                'document_chunks.metadata',
+                'searchable_documents.title as document_title',
+            ]);
     }
 }

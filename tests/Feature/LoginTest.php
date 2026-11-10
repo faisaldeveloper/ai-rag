@@ -29,6 +29,16 @@ class LoginTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
+    public function test_after_signing_in_the_user_returns_to_the_page_they_asked_for(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this->get('/knowledge-base')->assertRedirect(route('login'));
+
+        $this->post('/login', ['email' => $admin->email, 'password' => 'password'])
+            ->assertRedirect(route('knowledge-base'));
+    }
+
     public function test_a_wrong_password_and_an_unknown_email_get_the_same_error(): void
     {
         $user = User::factory()->create();
